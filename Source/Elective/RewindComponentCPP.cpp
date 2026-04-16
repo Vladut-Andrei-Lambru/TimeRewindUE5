@@ -1,4 +1,4 @@
-#include "RewindComponentCPP.h"
+﻿#include "RewindComponentCPP.h"
 
 #include "Components/PrimitiveComponent.h"
 #include "DrawDebugHelpers.h"
@@ -15,7 +15,7 @@ void URewindComponentCPP::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Cache components so we don�t search every frame
+	// Cache components so we don’t search every frame
 	CacheOwnerReferences();
 }
 
