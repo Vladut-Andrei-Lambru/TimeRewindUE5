@@ -8,7 +8,7 @@
 class UPrimitiveComponent;
 class UCharacterMovementComponent;
 
-// This component handles recording and rewinding time
+// This component records movement and rewinds it later
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class ELECTIVE_API URewindComponentCPP : public UActorComponent
 {
@@ -21,27 +21,37 @@ protected:
 	virtual void BeginPlay() override;
 
 public:
-	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+	virtual void TickComponent(
+		float DeltaTime,
+		ELevelTick TickType,
+		FActorComponentTickFunction* ThisTickFunction
+	) override;
 
-	// === RECORDING SETTINGS ===
+	// -----------------------------
+	// RECORDING SETTINGS
+	// -----------------------------
 
-	// How many frames we store
+	// How many stored frames are kept
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rewind|Recording")
 	int32 MaxStoredFrames = 300;
 
-	// Time between each recorded frame (IMPORTANT for consistent rewind time)
+	// Time between each recorded frame
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rewind|Recording")
 	float RecordInterval = 0.02f;
 
-	// === REWIND SETTINGS ===
+	// -----------------------------
+	// REWIND SETTINGS
+	// -----------------------------
 
-	// How many frames we rewind per tick (controls speed)
+	// How many frames are applied each tick while rewinding
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rewind|Playback")
 	int32 FramesPerRewindStep = 1;
 
-	// === DEBUG ===
+	// -----------------------------
+	// DEBUG
+	// -----------------------------
 
-	// Draw lines to show movement path
+	// Draw debug line path while recording
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rewind|Debug")
 	bool bDrawDebugPath = false;
 
@@ -51,41 +61,44 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Rewind|Debug")
 	FColor DebugLineColor = FColor::Cyan;
 
-	// === STATE ===
+	// -----------------------------
+	// STATE
+	// -----------------------------
 
-	// Are we currently recording time
 	UPROPERTY(BlueprintReadOnly, Category = "Rewind")
 	bool bIsRecording = true;
 
-	// Are we currently rewinding
 	UPROPERTY(BlueprintReadOnly, Category = "Rewind")
 	bool bIsRewinding = false;
 
-	// Stored frames
 	UPROPERTY(BlueprintReadOnly, Category = "Rewind")
 	TArray<FRewindFrame> StoredFrames;
 
-	// Last frame used (important for restoring physics)
 	UPROPERTY(BlueprintReadOnly, Category = "Rewind")
 	FRewindFrame LastFrame;
 
-	// === FUNCTIONS ===
+	// -----------------------------
+	// FUNCTIONS
+	// -----------------------------
 
-	// Start rewinding
 	UFUNCTION(BlueprintCallable, Category = "Rewind")
 	void StartRewind();
 
-	// Stop rewinding
 	UFUNCTION(BlueprintCallable, Category = "Rewind")
 	void StopRewind();
 
-	// Clear all stored data
 	UFUNCTION(BlueprintCallable, Category = "Rewind")
 	void ClearStoredFrames();
 
-	// Get how many seconds are stored
 	UFUNCTION(BlueprintPure, Category = "Rewind")
 	float GetStoredTimeSeconds() const;
+
+	// These can be used in Blueprint for particles / sounds / trails
+	UFUNCTION(BlueprintImplementableEvent, Category = "Rewind")
+	void OnRewindStartedBP();
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Rewind")
+	void OnRewindStoppedBP();
 
 private:
 	void RecordFrame();
@@ -98,10 +111,10 @@ private:
 	UPROPERTY()
 	UCharacterMovementComponent* CachedCharacterMovement = nullptr;
 
-	// Used for drawing debug path
+	// Used for debug path drawing
 	FVector PreviousRecordedLocation = FVector::ZeroVector;
 	bool bHasPreviousRecordedLocation = false;
 
-	// Timer for fixed recording interval
+	// Used for fixed time recording
 	float RecordTimer = 0.0f;
 };

@@ -15,35 +15,41 @@ void URewindComponentCPP::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Cache components so we don’t search every frame
+	// Cache references once at the start
 	CacheOwnerReferences();
 }
 
 void URewindComponentCPP::CacheOwnerReferences()
 {
 	AActor* Owner = GetOwner();
-	if (!Owner) return;
+	if (!Owner)
+	{
+		return;
+	}
 
-	// Get physics component (for cubes)
+	// For physics actors like cubes
 	CachedPrimitive = Cast<UPrimitiveComponent>(Owner->GetRootComponent());
 
-	// Get movement component (for player)
+	// For character actors like the player
 	if (ACharacter* CharacterOwner = Cast<ACharacter>(Owner))
 	{
 		CachedCharacterMovement = CharacterOwner->GetCharacterMovement();
 	}
 }
 
-void URewindComponentCPP::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+void URewindComponentCPP::TickComponent(
+	float DeltaTime,
+	ELevelTick TickType,
+	FActorComponentTickFunction* ThisTickFunction
+)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	// RECORDING (time-based, not frame-based)
+	// Record frames at a fixed time interval
 	if (bIsRecording && !bIsRewinding)
 	{
 		RecordTimer += DeltaTime;
 
-		// Only record when enough time passed
 		while (RecordTimer >= RecordInterval)
 		{
 			RecordFrame();
@@ -51,7 +57,7 @@ void URewindComponentCPP::TickComponent(float DeltaTime, ELevelTick TickType, FA
 		}
 	}
 
-	// REWINDING
+	// Rewind frames backwards
 	if (bIsRewinding)
 	{
 		DoRewindStep();
@@ -61,14 +67,17 @@ void URewindComponentCPP::TickComponent(float DeltaTime, ELevelTick TickType, FA
 void URewindComponentCPP::RecordFrame()
 {
 	AActor* Owner = GetOwner();
-	if (!Owner) return;
+	if (!Owner)
+	{
+		return;
+	}
 
 	FRewindFrame Frame;
 
-	// Save position
+	// Save actor transform
 	Frame.Transform = Owner->GetActorTransform();
 
-	// Save physics info
+	// Save physics info if this actor has a primitive root
 	if (CachedPrimitive)
 	{
 		Frame.LinearVelocity = CachedPrimitive->GetPhysicsLinearVelocity();
@@ -76,10 +85,10 @@ void URewindComponentCPP::RecordFrame()
 		Frame.bWasSimulatingPhysics = CachedPrimitive->IsSimulatingPhysics();
 	}
 
-	// Draw debug path
+	// Optional debug path drawing
 	if (bDrawDebugPath)
 	{
-		FVector CurrentLocation = Frame.Transform.GetLocation();
+		const FVector CurrentLocation = Frame.Transform.GetLocation();
 
 		if (bHasPreviousRecordedLocation)
 		{
@@ -99,10 +108,9 @@ void URewindComponentCPP::RecordFrame()
 		bHasPreviousRecordedLocation = true;
 	}
 
-	// Store frame
 	StoredFrames.Add(Frame);
 
-	// Remove oldest frame if too many
+	// Keep array size under the max
 	if (StoredFrames.Num() > MaxStoredFrames)
 	{
 		StoredFrames.RemoveAt(0);
@@ -111,32 +119,40 @@ void URewindComponentCPP::RecordFrame()
 
 void URewindComponentCPP::StartRewind()
 {
-	if (bIsRewinding) return;
+	if (bIsRewinding)
+	{
+		return;
+	}
 
 	bIsRewinding = true;
 	bIsRecording = false;
 	RecordTimer = 0.0f;
 
-	// Stop player movement
+	// Stop player movement while rewinding
 	if (CachedCharacterMovement)
 	{
 		CachedCharacterMovement->StopMovementImmediately();
 		CachedCharacterMovement->DisableMovement();
 	}
 
-	// Disable physics so we can control movement manually
+	// Disable physics so the rewind can control movement directly
 	if (CachedPrimitive && CachedPrimitive->IsSimulatingPhysics())
 	{
 		CachedPrimitive->SetSimulatePhysics(false);
 	}
+
+	OnRewindStartedBP();
 }
 
 void URewindComponentCPP::DoRewindStep()
 {
 	AActor* Owner = GetOwner();
-	if (!Owner) return;
+	if (!Owner)
+	{
+		return;
+	}
 
-	for (int i = 0; i < FramesPerRewindStep; i++)
+	for (int32 i = 0; i < FramesPerRewindStep; i++)
 	{
 		if (StoredFrames.Num() == 0)
 		{
@@ -144,12 +160,12 @@ void URewindComponentCPP::DoRewindStep()
 			return;
 		}
 
-		int32 LastIndex = StoredFrames.Num() - 1;
-		FRewindFrame Frame = StoredFrames[LastIndex];
+		const int32 LastIndex = StoredFrames.Num() - 1;
+		const FRewindFrame Frame = StoredFrames[LastIndex];
 
 		LastFrame = Frame;
 
-		// Move actor to old position
+		// Apply the stored transform exactly
 		Owner->SetActorTransform(Frame.Transform, false, nullptr, ETeleportType::TeleportPhysics);
 
 		StoredFrames.RemoveAt(LastIndex);
@@ -158,20 +174,23 @@ void URewindComponentCPP::DoRewindStep()
 
 void URewindComponentCPP::StopRewind()
 {
-	if (!bIsRewinding) return;
+	if (!bIsRewinding)
+	{
+		return;
+	}
 
 	bIsRewinding = false;
 	bIsRecording = true;
 	RecordTimer = 0.0f;
 
-	// Restore player movement
+	// Restore character movement
 	if (CachedCharacterMovement)
 	{
 		CachedCharacterMovement->StopMovementImmediately();
 		CachedCharacterMovement->SetMovementMode(MOVE_Walking);
 	}
 
-	// Restore physics
+	// Restore physics state
 	if (CachedPrimitive)
 	{
 		CachedPrimitive->SetWorldTransform(LastFrame.Transform, false, nullptr, ETeleportType::TeleportPhysics);
@@ -179,20 +198,20 @@ void URewindComponentCPP::StopRewind()
 		if (LastFrame.bWasSimulatingPhysics)
 		{
 			CachedPrimitive->SetSimulatePhysics(true);
-
-			// Restore velocities so motion continues naturally
 			CachedPrimitive->SetPhysicsLinearVelocity(LastFrame.LinearVelocity);
 			CachedPrimitive->SetPhysicsAngularVelocityInDegrees(LastFrame.AngularVelocity);
-
 			CachedPrimitive->WakeAllRigidBodies();
 		}
 	}
+
+	OnRewindStoppedBP();
 }
 
 void URewindComponentCPP::ClearStoredFrames()
 {
 	StoredFrames.Empty();
 	bHasPreviousRecordedLocation = false;
+	PreviousRecordedLocation = FVector::ZeroVector;
 }
 
 float URewindComponentCPP::GetStoredTimeSeconds() const
